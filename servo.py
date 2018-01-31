@@ -36,7 +36,11 @@ DEFAULT_THETA_MAX = 90
 #these are defined by the pca9685 hardware as max and min values in Hz:
 #the pwm pulse can be set to a value that is a fraction between 0 and 4096 of these values.
 MIN_FREQ = 40
+DEFAULT_FREQUENCY = 500
 MAX_FREQ = 1000
+
+#this is a buffer in microseconds past the max pulse that determines the pwn_frequency of the controllers
+PULSE_BUFFER = 200
 
 #initializes with default values for Hi-Tec HS-322HD servos, feel free to change defaults to your servo, or set manually for the project.
 class servo:
@@ -59,6 +63,9 @@ class servo:
   #these variables are used to keeping an up-to-date highest and lowest frequency pulse the servos will use for calculating the controller frequency.
   overall_pulse_min = 50000
   overall_pulse_max = 0
+
+  #this stores the frequency all the controllers use, calculated based on the max pulse size plus a buffer, to give the most precision per step.
+  pwm_frequency = DEFAULT_FREQUENCY
 
   def __init__(self, controller, channel, servo_constant, theta=None, default_pulse=DEFAULT_PULSE, theta_min=DEFAULT_THETA_MIN, theta_max=DEFAULT_THETA_MAX):
 
@@ -112,11 +119,9 @@ class servo:
     if self.pulse_max > servo.overall_pulse_max:
       servo.overall_pulse_max = self.pulse_max
 
-    #Calculate a midpoint to try and set a central frequency around:
-    overall_mid_pulse = (servo.overall_pulse_min + servo.overall_pulse_max)/2
-
-    #FIXME with the min, max, and mid overall pulses listed, find a frequency that will allow for all the servos to function well, at an acceptable resolution:
-    self.pwm_frequency = 350
+    #In order to get the best resolution possible, we calculate the pwn_frequency based on the overall_pulse_max and the PULSE_BUFFER:
+    #the 1000000 is to convert from us to s
+    servo.pwm_frequency = 1000000/(servo.overall_pulse_max + PULSE_BUFFER)
 
     #end __init__
 
