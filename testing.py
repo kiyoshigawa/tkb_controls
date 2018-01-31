@@ -36,7 +36,7 @@ pwm = Adafruit_PCA9685.PCA9685(0x40)
 pwm.set_pwm_freq(400)
 
 servo_low = 906
-servo_mid = 2800
+servo_mid = 2200
 servo_high = 4014
 
 pwm.set_pwm(0, 0, servo_mid)
