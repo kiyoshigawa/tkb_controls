@@ -3,7 +3,7 @@ Servo class for generic servos controlled with Adafruit PCA9685 drivers.
 
 Note: This license has also been called the "New BSD License" or "Modified BSD License". See also the 2-clause BSD License.
 
-Copyright 2017 kiyoshigawa
+Copyright 2017-2018 kiyoshigawa
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
@@ -17,18 +17,26 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 '''
 
+#a quick debug print function:
+DEBUG = True
+
+def log(s):
+  if DEBUG:
+    print(s)
+
 import time
 import Adafruit_PCA9685
 
-#Default values for variables below - update as needed for your servos.
+#Default values for variables below - update as needed for your servos. Others will need to use limit_test.py to get good values.
 DEFAULT_THETA_MIN = -90
 DEFAULT_THETA = 0
+DEFAULT_PULSE = 2800
 DEFAULT_THETA_MAX = 90
-DEFAULT_PULSE_MID = 1500
 
-#update these based on servo brand/type (values in us).
-DEFAULT_PULSE_MIN = 560
-DEFAULT_PULSE_MAX = 2440
+#these are defined by the pca9685 hardware as max and min values in Hz:
+#the pwm pulse can be set to a value that is a fraction between 0 and 4096 of these values.
+MIN_FREQ = 40
+MAX_FREQ = 1000
 
 #initializes with default values for Hi-Tec HS-322HD servos, feel free to change defaults to your servo, or set manually for the project.
 class servo:
@@ -40,7 +48,7 @@ class servo:
   servo_list = []
 
   #this is a variable for tracking the number of currently active initialized servos in the servo_list.
-  num_active = 0
+  num_active_servos = 0
 
   #This is a set of the channel numbers generated during initialization to facilitate creating the controller objects.
   active_controller_channels = set([])
@@ -48,7 +56,11 @@ class servo:
   #this is a list variable foir storing the Adafruit_PCA9685 objects that will control the servos.
   controllers = []
 
-  def __init__(self, controller, channel, servo_constant, theta=None, theta_default=DEFAULT_THETA, pulse_min=DEFAULT_PULSE_MIN, pulse_max=DEFAULT_PULSE_MAX, pulse_mid=DEFAULT_PULSE_MID):
+  #these variables are used to keeping an up-to-date highest and lowest frequency pulse the servos will use for calculating the controller frequency.
+  overall_pulse_min = 50000
+  overall_pulse_max = 0
+
+  def __init__(self, controller, channel, servo_constant, theta=None, default_pulse=DEFAULT_PULSE, theta_min=DEFAULT_THETA_MIN, theta_max=DEFAULT_THETA_MAX):
 
     #controller is hex address if 12c controller for adafruit library. Typically 0x40
     self.controller = controller
@@ -56,14 +68,14 @@ class servo:
     self.channel = channel
     #servo_constant is the number of degrees per us of pulse length for the servo. For the HS-322HD, this is 0.106.
     self.servo_constant = servo_constant
+    #theta is the initial degree value for the servo. It corresponds to default_pulse. All offsets are calculated from this based on the servo_constant.
+    self._theta = theta
+    #this is the value where the servo is at the dead center of its range of motion. Should be tested for empirically in an ideal world. Default was average of the HS-322HD servos I tested.
+    self.default_pulse = default_pulse
     #theta_min is the lowest theta value the servo can go to in degrees. Any values lower than this will be set to this value.
     self.theta_min = theta_min
-    #theta_default is the mid-point degree value for the servo. All offsets are calculated from this based on the servo_constant and pulse_mid.
-    self.theta_default = theta_default
     #theta_max is the highest theta value the servo can go to in degrees. Any values higher than this will be set to this value.
     self.theta_max = theta_max
-    #this is the value where the servo is at the dead center of its range of motion. Should be tested for empirically in an ideal world. Default was average of the HS-322HD servos I tested.
-    self.pulse_mid = pulse_mid
 
     #set theta up as a mutable property with a default value of 0.
     if theta is None:
@@ -72,19 +84,15 @@ class servo:
       self._theta = theta
 
     #Now to set some additional properties that can be calculated from the user-set values above:
-    
-    #This calculates the minimum pulse width for this servo.
-    self.pulse_min = DEFAULT_PULSE_MIN
-    #This calculates the maximum pusle width for this servo.
-    self.pulse_max = DEFAULT_PULSE_MAX
-    #FIXME This calculates the pwm frequency for the controller, based on all the existing servo values on that controller. 
-    #If it cannot find a pwm value that will work for all servos on the controller, an error will be raised.
-    self.pwm_frequency = 350
+
+    #we want to save the default theta value for future use
+    self.default_theta = theta
 
     #As each class object is created, update the class variable used_channels with a controller channel pair, after verifying that it is not already in use:
     if len(servo.used_channels) == 0:
       servo.used_channels.append( (controller, channel) )
     else:
+      #This will error the script if there's a duplicate channel. Otherwise it adds a new controller-channel combo to the list.
       for uc in servo.used_channels:
         if uc[0] == controller and uc[1] == channel:
           raise ValueError("Error: controller/channel combination is a duplicate, make sure every servo has a unique controller/channel combination!")
@@ -93,6 +101,24 @@ class servo:
     #update the servolist with this newest instance.
     servo.servo_list.append(self)
 
+    #We need the servo instance to calculate it's max and min pulse values based on the theta_min, theta_max, and theta<>default_pulse relationship.
+    self.pulse_min = default_pulse + ( (theta_min - self.default_theta)//servo_constant )
+    self.pulse_max = default_pulse + ( (theta_max - self.default_theta)//servo_constant )
+
+    #This calculates the pwm frequency for the controller, based on all the existing servo values on that controller. 
+    #If it cannot find a pwm value that will work for all servos on the controller, an error will be raised.
+    if self.pulse_min < servo.overall_pulse_min:
+      servo.overall_pulse_min = self.pulse_min
+    if self.pulse_max > servo.overall_pulse_max:
+      servo.overall_pulse_max = self.pulse_max
+
+    #Calculate a midpoint to try and set a central frequency around:
+    overall_mid_pulse = (servo.overall_pulse_min + servo.overall_pulse_max)/2
+
+    #FIXME with the min, max, and mid overall pulses listed, find a frequency that will allow for all the servos to function well, at an acceptable resolution:
+    self.pwm_frequency = 350
+
+    #end __init__
 
   #this will initialize the PCA9685 for first time running and set all channels to the current theta for all currently initialized controllers contained in the used_channels class variable.
   #You will only need to initialize the class once, unless you add additional servo controllers later.
@@ -114,13 +140,15 @@ class servo:
         cls.active_controller_channels.add( s.controller )
         #increment number of active controllers once activation is complete
         cls.num_active = cls.num_active+1
-      print(cls.active_controller_channels)
+      log("Active Servo Channels:")
+      log(cls.active_controller_channels)
       #create the Adafruit_PCA9685 objects on the correct controller as needed and add to the active_controller_channels.
       for c in cls.active_controller_channels:
         cls.controllers.append( Adafruit_PCA9685.PCA9685(c) )
-        print( cls.controllers )
       #once the objects are created, run the update class method to that they will move to the correct theta positions.
       cls.update()
+
+      #end initialize
 
 
 
@@ -139,8 +167,10 @@ class servo:
 
   @theta.setter
   def theta(self, theta):
+    #check for under-values theta
     if theta < self.theta_min:
       self._theta = self.theta_min
+    #check for over-values theta
     if theta > self.theta_max:
       self._theta = self.theta_max
     else:
