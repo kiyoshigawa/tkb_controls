@@ -8,6 +8,8 @@ import time
 '''
 import servo
 
+#this should be showing the proper format for setting up servos with the servo class when it's finished:
+
 l0 = (
   servo.servo(controller=0x40, channel=0, servo_constant=0.106, theta=0, theta_min=-90, theta_max=90, pulse_mid=2200),
   servo.servo(controller=0x40, channel=1, servo_constant=0.106, theta=1, theta_min=-90, theta_max=90, pulse_mid=2200),
