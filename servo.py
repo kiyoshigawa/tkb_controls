@@ -22,13 +22,13 @@ import Adafruit_PCA9685
 
 #Default values for variables below - update as needed for your servos.
 DEFAULT_THETA_MIN = -90
-DEFAULT_THETA_MID = 0
+DEFAULT_THETA = 0
 DEFAULT_THETA_MAX = 90
-DEFAULT_PULSE_MID = 2200
+DEFAULT_PULSE_MID = 1500
 
-#update these based on servo brand/type.
-DEFAULT_PULSE_MIN = 0
-DEFAULT_PULSE_MAX = 4096
+#update these based on servo brand/type (values in us).
+DEFAULT_PULSE_MIN = 560
+DEFAULT_PULSE_MAX = 2440
 
 #initializes with default values for Hi-Tec HS-322HD servos, feel free to change defaults to your servo, or set manually for the project.
 class servo:
@@ -48,7 +48,7 @@ class servo:
   #this is a list variable foir storing the Adafruit_PCA9685 objects that will control the servos.
   controllers = []
 
-  def __init__(self, controller, channel, servo_constant, theta=None, theta_min=DEFAULT_THETA_MIN, theta_mid=DEFAULT_THETA_MID, theta_max=DEFAULT_THETA_MAX, pulse_mid=DEFAULT_PULSE_MID):
+  def __init__(self, controller, channel, servo_constant, theta=None, theta_default=DEFAULT_THETA, pulse_min=DEFAULT_PULSE_MIN, pulse_max=DEFAULT_PULSE_MAX, pulse_mid=DEFAULT_PULSE_MID):
 
     #controller is hex address if 12c controller for adafruit library. Typically 0x40
     self.controller = controller
@@ -58,8 +58,8 @@ class servo:
     self.servo_constant = servo_constant
     #theta_min is the lowest theta value the servo can go to in degrees. Any values lower than this will be set to this value.
     self.theta_min = theta_min
-    #theta_mid is the mid-point degree value for the servo. All offsets are calculated from this based on the servo_constant and pulse_mid.
-    self.theta_mid = theta_mid
+    #theta_default is the mid-point degree value for the servo. All offsets are calculated from this based on the servo_constant and pulse_mid.
+    self.theta_default = theta_default
     #theta_max is the highest theta value the servo can go to in degrees. Any values higher than this will be set to this value.
     self.theta_max = theta_max
     #this is the value where the servo is at the dead center of its range of motion. Should be tested for empirically in an ideal world. Default was average of the HS-322HD servos I tested.
@@ -67,7 +67,7 @@ class servo:
 
     #set theta up as a mutable property with a default value of 0.
     if theta is None:
-      self._theta = DEFAULT_THETA_MID
+      self._theta = DEFAULT_THETA
     else:
       self._theta = theta
 
@@ -77,7 +77,7 @@ class servo:
     self.pulse_min = DEFAULT_PULSE_MIN
     #This calculates the maximum pusle width for this servo.
     self.pulse_max = DEFAULT_PULSE_MAX
-    #FIXME This calculates the pwm frequency for the controller, based on all the existing servo values on that servo. 
+    #FIXME This calculates the pwm frequency for the controller, based on all the existing servo values on that controller. 
     #If it cannot find a pwm value that will work for all servos on the controller, an error will be raised.
     self.pwm_frequency = 350
 

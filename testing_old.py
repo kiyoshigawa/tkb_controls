@@ -7,7 +7,6 @@ from __future__ import division
 import time
 '''
 import servo
-
 l0 = (
   servo.servo(controller=0x40, channel=0, servo_constant=0.106, theta=0, theta_min=-90, theta_max=90, pulse_mid=2200),
   servo.servo(controller=0x40, channel=1, servo_constant=0.106, theta=1, theta_min=-90, theta_max=90, pulse_mid=2200),
@@ -22,9 +21,8 @@ l0[4].initialize()
 for s in l0:
   print(s.theta)
 
+OLD CODE FOR DIRECT CONTROL:
 '''
-#OLD CODE FOR DIRECT CONTROL:
-
 # Import the PCA9685 module.
 import Adafruit_PCA9685
 
