@@ -15,20 +15,30 @@ def log(s):
   if DEBUG:
     print(s)
 
-l0 = (
-  servo.servo(controller=0x40, channel=0, servo_constant=0.106, theta=0, default_pulse=2800, theta_min=-90, theta_max=90),
-  servo.servo(controller=0x40, channel=1, servo_constant=0.106, theta=1, default_pulse=2801, theta_min=-90, theta_max=90),
-  servo.servo(controller=0x40, channel=2, servo_constant=0.106, theta=2, default_pulse=2602, theta_min=-90, theta_max=90),
-  servo.servo(controller=0x40, channel=3, servo_constant=0.106, theta=3, default_pulse=2803, theta_min=-90, theta_max=90),
-  servo.servo(controller=0x40, channel=4, servo_constant=0.106, theta=4, default_pulse=2704, theta_min=-90, theta_max=90)
+leg0 = (
+  servo.servo(controller=0x40, channel=0, servo_constant=0.106, theta=0, default_pulse=1500, theta_min=-90, theta_max=90),
+  servo.servo(controller=0x40, channel=1, servo_constant=0.106, theta=0, default_pulse=1500, theta_min=-90, theta_max=90),
+  servo.servo(controller=0x40, channel=2, servo_constant=0.106, theta=0, default_pulse=1500, theta_min=-90, theta_max=90),
+  servo.servo(controller=0x40, channel=3, servo_constant=0.106, theta=0, default_pulse=1500, theta_min=-90, theta_max=90),
+  servo.servo(controller=0x40, channel=4, servo_constant=0.106, theta=0, default_pulse=1500, theta_min=-90, theta_max=90)
 )
 
-l0[4].initialize()
+leg0[0].initialize()
+time.sleep(1)
+leg0[0].theta = 90
+leg0[0].update()
 
-l0[3].theta = 20;
+time.sleep(1)
+leg0[0].theta = -90
+leg0[0].update()
 
-for s in l0:
-  log(s.theta)
+time.sleep(1)
+leg0[0].set_us_pulse(1500)
+leg0[0].update()
+
+time.sleep(1)
+leg0[0].disable_all()
+leg0[0].update()
 
 '''
 #OLD CODE FOR DIRECT CONTROL:
@@ -38,7 +48,7 @@ import Adafruit_PCA9685
 
 #default address of 40
 pwm = Adafruit_PCA9685.PCA9685(0x40)
-
+log(pwm)
 pwm.set_pwm_freq(400)
 
 servo_low = 906

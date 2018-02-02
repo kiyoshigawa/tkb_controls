@@ -17,21 +17,20 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 '''
 
-import time
-import Adafruit_PCA9685
-
 #a quick debug print function:
 DEBUG = True
-
 
 def log(s):
   if DEBUG:
     print(s)
 
+import time
+import Adafruit_PCA9685
+
 #Default values for variables below - update as needed for your servos. Others will need to use limit_test.py to get good values.
 DEFAULT_THETA_MIN = -90
 DEFAULT_THETA = 0
-DEFAULT_PULSE = 1500
+DEFAULT_PULSE = 2800
 DEFAULT_THETA_MAX = 90
 
 #these are defined by the pca9685 hardware as max and min values in Hz:
@@ -44,12 +43,11 @@ MAX_FREQ = 1000
 #if the servo isn't reacting well, increase this to give more time between pulses.
 PULSE_BUFFER = 500
 
-
 #initializes with default values for Hi-Tec HS-322HD servos, feel free to change defaults to your servo, or set manually for the project.
 class servo:
 
   #This is a variable to track the used controllers and channels of all active servos.
-  used_channels = []
+  used_channels=[]
 
   #this is a list of all the created Servo class objects, for use by the init and update functions.
   servo_list = []
@@ -69,9 +67,6 @@ class servo:
 
   #this stores the frequency all the controllers use, calculated based on the max pulse size plus a buffer, to give the most precision per step.
   pwm_frequency = DEFAULT_FREQUENCY
-
-  #this pulse constant is the number of microseconds per division (out of 4096) of the pwm total pulse length.
-  pulse_time = 1000000 / (pwm_frequency * 4096)
 
   def __init__(self, controller, channel, servo_constant, theta=None, default_pulse=DEFAULT_PULSE, theta_min=DEFAULT_THETA_MIN, theta_max=DEFAULT_THETA_MAX):
 
@@ -98,36 +93,27 @@ class servo:
 
     #Now to set some additional properties that can be calculated from the user-set values above:
 
-    #set to false to disable a servo - see setter functions below
-    self._enable = True
-
-    #this is a state value to reduce unnecessary updating:
-    self.theta_has_changed = True
-
     #we want to save the default theta value for future use
     self.default_theta = theta
 
-    #we will also need a variable to set pulse duration in us when theta changes
-    self.current_pulse = self.default_pulse
-
     #As each class object is created, update the class variable used_channels with a controller channel pair, after verifying that it is not already in use:
     if len(servo.used_channels) == 0:
-      servo.used_channels.append((controller, channel))
+      servo.used_channels.append( (controller, channel) )
     else:
       #This will error the script if there's a duplicate channel. Otherwise it adds a new controller-channel combo to the list.
       for uc in servo.used_channels:
         if uc[0] == controller and uc[1] == channel:
           raise ValueError("Error: controller/channel combination is a duplicate, make sure every servo has a unique controller/channel combination!")
-      servo.used_channels.append((controller, channel))
+      servo.used_channels.append( (controller, channel) )
 
     #update the servolist with this newest instance.
     servo.servo_list.append(self)
 
     #We need the servo instance to calculate it's max and min pulse values based on the theta_min, theta_max, and theta<>default_pulse relationship.
-    self.pulse_min = default_pulse + ((theta_min - self.default_theta) // servo_constant)
-    self.pulse_max = default_pulse + ((theta_max - self.default_theta) // servo_constant)
+    self.pulse_min = default_pulse + ( (theta_min - self.default_theta)//servo_constant )
+    self.pulse_max = default_pulse + ( (theta_max - self.default_theta)//servo_constant )
 
-    #This calculates the pwm frequency for the controller, based on all the existing servo values on that controller.
+    #This calculates the pwm frequency for the controller, based on all the existing servo values on that controller. 
     #If it cannot find a pwm value that will work for all servos on the controller, an error will be raised.
     if self.pulse_min < servo.overall_pulse_min:
       servo.overall_pulse_min = self.pulse_min
@@ -136,9 +122,8 @@ class servo:
 
     #In order to get the best resolution possible, we calculate the pwm_frequency based on the overall_pulse_max and the PULSE_BUFFER:
     #the 1000000 is to convert from us to s
-    servo.pwm_frequency = 1000000 // (servo.overall_pulse_max + PULSE_BUFFER)
-    #now update the pulse_time constant based on the new frequency
-    servo.pulse_time = 1000000 / (servo.pwm_frequency * 4096)
+    servo.pwm_frequency = 1000000//(servo.overall_pulse_max + PULSE_BUFFER)
+    log(servo.pwm_frequency)
 
     #end __init__
 
@@ -159,23 +144,20 @@ class servo:
       #this will iterate through the servo_list and set up the actual pwm Adafruit_PCA9685 objects for running each servo.
       for s in cls.servo_list:
         #This only adds to the set if it is not in the set already.
-        cls.active_controller_channels.add(s.controller)
+        cls.active_controller_channels.add( s.controller )
         #increment number of active controllers once activation is complete
-        cls.num_active = cls.num_active + 1
+        cls.num_active = cls.num_active+1
       log("Active Servo Channels:")
       log(cls.active_controller_channels)
       #create the Adafruit_PCA9685 objects on the correct controller as needed and add to the active_controller_channels.
       for c in cls.active_controller_channels:
-        cls.controllers.append(Adafruit_PCA9685.PCA9685(c))
-      #set the frequency of all controllers in the list:
-      for c in cls.controllers:
-        c.set_pwm_freq(cls.pwm_frequency)
-        #set all servos to off during init, update will refresh
-        c.set_all_pwm(4096, 0)
+        cls.controllers.append( Adafruit_PCA9685.PCA9685(c) )
       #once the objects are created, run the update class method to that they will move to the correct theta positions.
       cls.update()
 
       #end initialize
+
+
 
   #this will update the the PCA9685 for all currently created servos to their current theta values.
   @classmethod
@@ -183,42 +165,8 @@ class servo:
     #check to see if used_channels is empty and error if it is:
     if len(cls.used_channels) == 0:
       raise ValueError("Error: No servos have been initialized on any channel! Cannot run update.")
-    #Iterate through all Servo class objects and set the controller channel pwm to the required pulses.
-    for s in cls.servo_list:
-      #only send an update if theta has changed:
-      if s.theta_has_changed:
-        #calculate how many out of 4096 the current_pulse is.
-        pulse_end = int(s.current_pulse // servo.pulse_time)
-        #then send the set command to the controller
-        for c in servo.controllers:
-          if c._device._address == s.controller:
-            if s.enable is False:
-              c.set_pwm(s.channel, 4096, 0)
-            else:
-              c.set_pwm(s.channel, 0, pulse_end)
-        #reset the state variable to cue down on unneeded updates
-        s.theta_has_changed = False
-
-  #this provides a method for setting microsecond pulses directly
-  def set_us_pulse(self, us):
-    self.current_pulse = us
-    self._theta = self.default_theta + self.servo_constant * (self.current_pulse - self.default_pulse)
-    self.theta_has_changed = True
-
-  #this disables all active servos:
-  @classmethod
-  def disable_all(cls):
-    for s in cls.servo_list:
-      s.enable = False
-      s.theta_has_changed = True
-
-  #this enables all active servos:
-  @classmethod
-  def enable_all(cls):
-    for s in cls.servo_list:
-      s.enable = True
-      s.theta_has_changed = True
-
+    #FIXME Iterate through all Servo class objects and set the controller channel pwm to the required pulses.
+  
   #Theta property functions
   @property
   def theta(self):
@@ -234,26 +182,7 @@ class servo:
       self._theta = self.theta_max
     else:
       self._theta = theta
-    #we will also want to set the pulse value corresponding to theta here, for use with the update function.
-    #This should update every time theta is set, so it doesn't need to be calculated on every update.
-    self.current_pulse = self.default_pulse + (self._theta - self.default_theta) / self.servo_constant
-    #finally note that the theta has changed:
-    self.theta_has_changed = True
 
   @theta.deleter
   def theta(self):
     del self._theta
-
-  #enable property functions
-  @property
-  def enable(self):
-    return self._enable
-
-  @enable.setter
-  def enable(self, enable):
-    self._enable = enable
-    self.theta_has_changed = True
-
-  @enable.deleter
-  def enable(self):
-    del self._enable
